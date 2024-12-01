@@ -1,0 +1,44 @@
+version: '3.7'
+
+services:
+  orion-api:
+    container_name: orion-api
+    ports:
+      - 3000:3000
+    image: orion-api:dev
+    build:
+      context: .
+      target: development
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: npm run start
+    environment:
+      NODE_ENV: development
+      SERVER_PORT: 3000
+      DB_DATABASE: orion
+    env_file: .env
+    networks:
+      - orion-connect
+
+  orion-mysql:
+    container_name: orion-mysql
+    image: mysql
+    environment:
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_DATABASE}
+    ports:
+      - 3306:3306
+    volumes:
+      - ~/docker/volumes/OrionApi_MySQL:/var/lib/mysql
+    env_file: .env
+    networks:
+      - orion-connect
+    logging:
+      driver: none
+
+networks:
+  orion-connect:
+    driver: bridge
