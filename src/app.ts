@@ -17,7 +17,7 @@ MysqlDataSource.initialize()
     console.log('Database initialized!');
   })
   .catch((err) => {
-    console.error('Database Error: ', err);
+    console.warn('Database Error: ', err);
   });
 
 const app = express();
