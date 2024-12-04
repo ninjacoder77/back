@@ -1,7 +1,6 @@
-import { NextFunction, Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { Repository } from 'typeorm';
 import { MysqlDataSource } from '../config/database';
-import { TipoConta } from '../entities/baseEntity';
 
 // Interface para entidades com relacionamento 'admin'
 interface EntityWithAdmin {
@@ -24,7 +23,7 @@ export function checkAdminPermission<T extends EntityWithAdmin>(
       const { user } = req;
 
       // Verifica se o usuário é um admin autenticado
-      if (!user || user.tipoConta !== TipoConta.ADMIN) {
+      if (!user || user.tipoConta !== 'admin') {
         return res
           .status(403)
           .json({ error: 'Acesso negado. Permissão de admin necessária.' });
@@ -34,10 +33,8 @@ export function checkAdminPermission<T extends EntityWithAdmin>(
         MysqlDataSource.getRepository(entityClass);
 
       // Busca a entidade no banco
-      const entityRecord = await entityRepository.findOne({
-        where: {
-          id: Number(id),
-        } as any,
+      const entityRecord = await entityRepository.findOne(Number(id), {
+        relations: ['admin']
       });
 
       if (!entityRecord) {
@@ -48,7 +45,7 @@ export function checkAdminPermission<T extends EntityWithAdmin>(
       if (entityRecord.admin.id !== user.id) {
         return res.status(403).json({
           error:
-            'Acesso negado. Você não tem permissão para gerenciar esta entidade.',
+            'Acesso negado. Você não tem permissão para gerenciar esta entidade.'
         });
       }
 

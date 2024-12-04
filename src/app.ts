@@ -12,12 +12,13 @@ import professorRouter from './routes/professorRoutes';
 // import responsaveisRouter from './routes/responsaveisRoutes';
 // import alunoRouter from './routes/alunosRoutes';
 import loginRouter from './routes/loginRoutes';
+import pdiRouter from './routes/pdiRoutes';
 MysqlDataSource.initialize()
   .then(() => {
     console.log('Database initialized!');
   })
   .catch((err) => {
-    console.warn('Database Error: ', err);
+    console.error('Database Error: ', err);
   });
 
 const app = express();
@@ -29,6 +30,7 @@ app.use('/admin', adminRouter);
 app.use('/membros', membrosRouter);
 app.use('/turmas', turmasRouter);
 app.use('/professores', professorRouter);
+app.use('/pdi', pdiRouter);
 // app.use('/responsaveis', responsaveisRouter);
 // app.use('/alunos', alunoRouter);
 app.use('/auth', loginRouter);

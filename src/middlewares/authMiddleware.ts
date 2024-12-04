@@ -1,4 +1,4 @@
-import { NextFunction, Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { JwtPayload } from '../utils/jwtUtils';
 
@@ -32,7 +32,7 @@ export async function authenticateJWT(
       id: decoded.id,
       numeroMatricula: decoded.email,
       tipoConta: decoded.tipoConta,
-      permissions: decoded.permissions,
+      permissions: decoded.permissions
     };
     next();
   } catch (error) {

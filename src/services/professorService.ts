@@ -1,11 +1,11 @@
 import { In } from 'typeorm';
-import { Professor } from '../entities/professorEntities';
-import { Membros } from '../entities/membrosEntities';
-import { Turma } from '../entities/turmasEntities';
-import { TipoConta } from '../entities/baseEntity';
-import { criptografarSenha } from '../utils/senhaUtils';
-import ErrorHandler from '../errors/errorHandler';
 import { MysqlDataSource } from '../config/database';
+import { TipoConta } from '../entities/baseEntity';
+import { Membros } from '../entities/membrosEntities';
+import { Professor } from '../entities/professorEntities';
+import { Turma } from '../entities/turmasEntities';
+import ErrorHandler from '../errors/errorHandler';
+import { criptografarSenha } from '../utils/senhaUtils';
 
 export class ProfessorService {
   private membrosRepository = MysqlDataSource.getRepository(Membros);
@@ -164,5 +164,27 @@ export class ProfessorService {
     }
 
     await this.professorRepository.remove(professorExistente);
+  }
+
+  async buscarProfessorTurmas(professorId: number) {
+    const professor = await this.professorRepository.findOne({
+      where: {
+        id: professorId
+      },
+      relations: ['turmas']
+    });
+
+    if (!professor) {
+      throw ErrorHandler.notFound('Professor não encontrado');
+    }
+
+    if (!professor.turmas || !Array.isArray(professor.turmas)) {
+      return [];
+    }
+
+    return professor.turmas.map((turma) => ({
+      id: turma.id,
+      turmaApelido: turma.turmaApelido
+    }));
   }
 }
