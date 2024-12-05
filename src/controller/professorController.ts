@@ -1,65 +1,163 @@
-import { Request, Response, NextFunction } from 'express';
-import { ProfessorService } from '../services/professorService';
+import { Request, Response } from 'express';
 import ErrorHandler from '../errors/errorHandler';
+import { ProfessorService } from '../services/professorService';
+import { getPaginacao } from '../utils/paginacaoUtils';
 
 export class ProfessorController {
   private professorService = new ProfessorService();
 
-  async criarProfessor(req: Request, res: Response, next: NextFunction) {
+  async criarProfessor(req: Request, res: Response) {
     try {
-      const adminLogadoId = req.user?.id || null;
+      const membroAdminId = req.user.id;
 
-      const novoProfessor = await this.professorService.criarProfessor(
+      // if (!adminLogadoId) {
+      //   throw ErrorHandler.unauthorized('Admin não autenticado.');
+      // }
+
+      const resultado = await this.professorService.criarProfessor(
         req.body,
+        membroAdminId
+      );
+
+      return res.status(201).json(resultado);
+    } catch (error) {
+      return res
+        .status(500)
+        .json({ error: error.message, message: 'Erro ao Criar Professor' });
+    }
+  }
+
+  async listarProfessores(req: Request, res: Response) {
+    try {
+      const { page, perPage } = getPaginacao(req);
+      const searchTerm = req.query.searchTerm
+        ? String(req.query.searchTerm)
+        : '';
+      const adminId = Number(req.user.id);
+
+      const { data, total } = await this.professorService.listarProfessores(
+        adminId,
+        page,
+        perPage,
+        searchTerm
+      );
+
+      return res.status(200).json({ page, perPage, total, data });
+    } catch (error) {
+      console.log(error);
+      return res
+        .status(500)
+        .json({ error: error.message, message: 'Erro ao listar Professores' });
+    }
+  }
+
+  async listarProfessoresPagina(req: Request, res: Response) {
+    try {
+      const { page, perPage } = req.query;
+      const searchTerm = req.query.searchTerm ?? '';
+      const adminLogadoId = req.user?.id;
+
+      const resultado = await this.professorService.listarProfessoresPagina(
+        Number(page) || 1,
+        Number(perPage) || 10,
+        searchTerm as string,
         adminLogadoId
       );
 
-      res.status(201).json(novoProfessor);
+      return res.status(200).json({
+        message: resultado.message,
+        page,
+        perPage,
+        total: resultado.total,
+        data: resultado.data
+      });
     } catch (error) {
-      next(error);
+      return res
+        .status(error.statusCode || 500)
+        .json({ message: error.message });
     }
   }
 
-  async listarProfessores(req: Request, res: Response, next: NextFunction) {
+  async buscarProfessorPorId(req: Request, res: Response) {
     try {
-      const professor = await this.professorService.listarProfessores();
-      res.json(professor);
-    } catch (error) {
-      next(error);
-    }
-  }
+      const membroAdminId = req.user.id;
 
-  async buscarProfessorPorId(req: Request, res: Response, next: NextFunction) {
-    try {
-      const id = parseInt(req.params.id, 10);
-      const professor = await this.professorService.buscarProfessorPorId(id);
-      res.json(professor);
-    } catch (error) {
-      next(error);
-    }
-  }
+      if (!membroAdminId) {
+        throw ErrorHandler.unauthorized('Admin não autenticado.');
+      }
 
-  async atualizarProfessor(req: Request, res: Response, next: NextFunction) {
-    try {
       const id = parseInt(req.params.id, 10);
 
-      const professorAtualizado =
-        await this.professorService.atualizarProfessor(id, req.body);
+      if (isNaN(id)) {
+        throw ErrorHandler.badRequest('ID inválido.');
+      }
 
-      res.status(200).json(professorAtualizado);
+      const professor = await this.professorService.buscarProfessorPorId(
+        id,
+        membroAdminId
+      );
+
+      return res.status(200).json(professor);
     } catch (error) {
-      next(error);
+      console.log(error);
+      return res
+        .status(error.statusCode || 500)
+        .json({ message: 'Erro aso Buscar Professor' });
     }
   }
 
-  async deletarProfessor(req: Request, res: Response, next: NextFunction) {
+  async atualizarProfessor(req: Request, res: Response) {
     try {
+      const membroAdminId = Number(req.user.id);
+
+      if (!membroAdminId) {
+        throw ErrorHandler.unauthorized('Admin não autenticado.');
+      }
+
       const id = parseInt(req.params.id, 10);
 
-      await this.professorService.deletarProfessor(id);
-      res.status(204).send('Professor excluído com sucesso');
+      if (isNaN(id)) {
+        throw ErrorHandler.badRequest('ID inválido.');
+      }
+
+      const resultado = await this.professorService.atualizarProfessor(
+        id,
+        req.body,
+        membroAdminId
+      );
+
+      return res.status(200).json(resultado);
     } catch (error) {
-      next(error);
+      return res
+        .status(error.statusCode || 500)
+        .json({ message: 'Erro ao atualizar professor', error });
+    }
+  }
+
+  async deletarProfessor(req: Request, res: Response) {
+    try {
+      const membroIdDoAdmin = Number(req.user.id);
+
+      if (!membroIdDoAdmin) {
+        throw ErrorHandler.unauthorized('Admin não autenticado.');
+      }
+
+      const id = parseInt(req.params.id, 10);
+
+      if (isNaN(id)) {
+        throw ErrorHandler.badRequest('ID inválido.');
+      }
+
+      const resultado = await this.professorService.deletarProfessor(
+        id,
+        membroIdDoAdmin
+      );
+
+      res.status(200).json(resultado);
+    } catch (error) {
+      return res
+        .status(500)
+        .json({ error: error.message, message: 'Erro ao excluir Professor' });
     }
   }
 

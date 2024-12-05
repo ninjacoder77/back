@@ -1,5 +1,6 @@
 import { MysqlDataSource } from '../config/database';
 import { Alunos } from '../entities/alunosEntities';
+import { TipoConta } from '../entities/baseEntity';
 import {
   NivelDeSatisfacao,
   PDI,
@@ -54,7 +55,9 @@ export class PdiService {
       }),
       this.professorRepository.findOne({
         where: {
-          id: professorId
+          membro: {
+            id: professorId
+          }
         }
       })
     ]);
@@ -144,13 +147,14 @@ export class PdiService {
     };
   }
 
-  async pdisDoAluno(alunoId: number) {
+  async pdisDoAluno(alunoId: number, tipoConta: TipoConta) {
+    const condicao =
+      tipoConta === TipoConta.ALUNO
+        ? { aluno: { membro: { id: alunoId } } }
+        : { aluno: { id: alunoId } };
+
     const pdis = await this.pdiRepository.find({
-      where: {
-        aluno: {
-          id: alunoId
-        }
-      },
+      where: condicao,
       order: { dataCriacao: 'DESC' },
       select: ['id', 'dataCriacao']
     });
@@ -172,7 +176,7 @@ export class PdiService {
         relations: ['membro', 'turma']
       }),
       this.professorRepository.findOne({
-        where: { id: professorId },
+        where: { membro: { id: professorId } },
         relations: ['membro']
       })
     ]);

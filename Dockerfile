@@ -14,6 +14,4 @@ RUN chown -R node /app/node_modules
 
 USER node
 
-EXPOSE 3000
-
-CMD ["sh", "-c", "npm run seed && npm run start"]
+EXPOSE 8080

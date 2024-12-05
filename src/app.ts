@@ -1,18 +1,17 @@
-import express from 'express';
 import cors from 'cors';
-import swaggerUI from 'swagger-ui-express';
+import express from 'express';
 import swaggerJSDoc from 'swagger-jsdoc';
+import swaggerUI from 'swagger-ui-express';
 import { MysqlDataSource } from './config/database';
 import { swaggerConfig } from './config/swagger';
 import { errorHandler } from './errors/errorHandler';
 import adminRouter from './routes/adminRoutes';
-import membrosRouter from './routes/membrosRoutes';
-import turmasRouter from './routes/turmasRoutes';
-import professorRouter from './routes/professorRoutes';
-// import responsaveisRouter from './routes/responsaveisRoutes';
-// import alunoRouter from './routes/alunosRoutes';
+import alunoRouter from './routes/alunoRoutes';
 import loginRouter from './routes/loginRoutes';
+import membrosRouter from './routes/membrosRoutes';
 import pdiRouter from './routes/pdiRoutes';
+import professorRouter from './routes/professorRoutes';
+import turmasRouter from './routes/turmasRoutes';
 MysqlDataSource.initialize()
   .then(() => {
     console.log('Database initialized!');
@@ -30,9 +29,8 @@ app.use('/admin', adminRouter);
 app.use('/membros', membrosRouter);
 app.use('/turmas', turmasRouter);
 app.use('/professores', professorRouter);
+app.use('/alunos', alunoRouter);
 app.use('/pdi', pdiRouter);
-// app.use('/responsaveis', responsaveisRouter);
-// app.use('/alunos', alunoRouter);
 app.use('/auth', loginRouter);
 app.use(errorHandler);
 

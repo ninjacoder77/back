@@ -1,13 +1,15 @@
-import { In } from 'typeorm';
+import { In, Like } from 'typeorm';
 import { MysqlDataSource } from '../config/database';
+import { Admin } from '../entities/adminEntities';
 import { TipoConta } from '../entities/baseEntity';
 import { Membros } from '../entities/membrosEntities';
 import { Professor } from '../entities/professorEntities';
 import { Turma } from '../entities/turmasEntities';
 import ErrorHandler from '../errors/errorHandler';
-import { criptografarSenha } from '../utils/senhaUtils';
+import { criptografarSenha } from '../utils/validarSenhaUtils';
 
 export class ProfessorService {
+  private adminRepository = MysqlDataSource.getRepository(Admin);
   private membrosRepository = MysqlDataSource.getRepository(Membros);
   private professorRepository = MysqlDataSource.getRepository(Professor);
   private turmaRepository = MysqlDataSource.getRepository(Turma);
@@ -18,71 +20,173 @@ export class ProfessorService {
     }
   }
 
+  private dadosProfessor(professor: Professor) {
+    return {
+      id: professor.id,
+      nomeCompleto: professor.membro.nomeCompleto,
+      numeroMatricula: professor.membro.numeroMatricula,
+      email: professor.membro.email,
+      cpf: professor.membro.cpf,
+      turmas: professor.turmas.map((turma) => ({
+        id: turma.id,
+        anoLetivo: turma.anoLetivo,
+        periodoLetivo: turma.periodoLetivo,
+        ensino: turma.ensino,
+        turmaApelido: turma.turmaApelido
+      }))
+    };
+  }
+
   async criarProfessor(
     dadosProfessor: {
       email: string;
       nomeCompleto: string;
       numeroMatricula: string;
       cpf: string;
-      turma: number[];
+      turmas: number[];
     },
-    adminCriadorId: number | null
+    membroAdminId: number
   ) {
     await this.iniciarDatabase();
 
-    // Buscar turmas associadas
-    const turmas = await this.turmaRepository.find({
-      where: { id: In(dadosProfessor.turma) }
-    });
+    try {
+      const admin = await this.adminRepository.findOne({
+        where: {
+          membro: {
+            id: membroAdminId
+          }
+        }
+      });
 
-    if (turmas.length !== dadosProfessor.turma.length) {
-      throw ErrorHandler.notFound('Algumas turmas não foram encontradas.');
+      const turmaArray = await this.turmaRepository.find({
+        where: { id: In(dadosProfessor.turmas) }
+      });
+
+      if (turmaArray.length !== dadosProfessor.turmas.length) {
+        throw ErrorHandler.notFound(
+          'Algumas turmas fornecidas não foram encontradas'
+        );
+      }
+
+      const senhaCriptografada = await criptografarSenha(
+        dadosProfessor.numeroMatricula
+      );
+
+      const membroCriado = this.membrosRepository.create({
+        email: dadosProfessor.email,
+        nomeCompleto: dadosProfessor.nomeCompleto,
+        numeroMatricula: dadosProfessor.numeroMatricula,
+        senha: senhaCriptografada,
+        cpf: dadosProfessor.cpf,
+        tipoConta: TipoConta.PROFESSOR,
+        adminCriador: admin
+      });
+
+      const membro = await this.membrosRepository.save(membroCriado);
+
+      const professor = this.professorRepository.create({
+        membro,
+        turmas: turmaArray,
+        admin
+      });
+
+      const novoProfessor = await this.professorRepository.save(professor);
+
+      return {
+        message: 'Professor cadastrado com sucesso',
+        professor: novoProfessor
+      };
+    } catch (error) {
+      console.log(error);
+
+      throw new Error('Erro ao Criar Professor');
     }
-
-    // Criar o membro
-    const membro = this.membrosRepository.create({
-      email: dadosProfessor.email,
-      nomeCompleto: dadosProfessor.nomeCompleto,
-      numeroMatricula: dadosProfessor.numeroMatricula,
-      cpf: dadosProfessor.cpf,
-      tipoConta: TipoConta.PROFESSOR,
-      adminCriadorId: adminCriadorId ? { id: adminCriadorId } : null
-    });
-
-    await this.membrosRepository.save(membro);
-
-    // Criar o professor associado ao membro
-    const professor = this.professorRepository.create({
-      membro,
-      turmas
-    });
-
-    const novoProfessor = await this.professorRepository.save(professor);
-
-    return novoProfessor;
   }
 
-  async listarProfessores() {
+  async listarProfessores(
+    adminId: number,
+    paginaNumero: number,
+    paginaTamanho: number | null,
+    searchTerm: string
+  ) {
     await this.iniciarDatabase();
 
-    return await this.professorRepository.find({
-      relations: ['membro']
+    const offset = (paginaNumero - 1) * (paginaTamanho ?? 0);
+    const [professores, total] = await this.professorRepository.findAndCount({
+      where: {
+        admin: {
+          membro: { id: adminId }
+        },
+        membro: {
+          nomeCompleto: Like(`%${searchTerm}%`)
+        }
+      },
+      skip: paginaTamanho ? offset : undefined,
+      take: paginaTamanho || undefined
     });
+
+    return {
+      total,
+      data: professores.map(this.dadosProfessor)
+    };
   }
 
-  async buscarProfessorPorId(id: number) {
+  async listarProfessoresPagina(
+    paginaNumero: number,
+    paginaTamanho: number,
+    termoDeBusca: string,
+    adminLogadoId: number
+  ) {
+    const pular = (paginaNumero - 1) * paginaTamanho;
+
+    const [professores, total] = await this.professorRepository.findAndCount({
+      relations: ['membro'],
+      where: {
+        membro: {
+          adminCriadorId: adminLogadoId,
+          ...(termoDeBusca && { nomeCompleto: Like(`%${termoDeBusca}%`) })
+        }
+      },
+      order: { membro: { nomeCompleto: 'ASC' } },
+      skip: pular,
+      take: paginaTamanho
+    });
+
+    if (professores.length === 0) {
+      throw ErrorHandler.notFound(
+        termoDeBusca
+          ? `Nenhum professor encontrado com o termo "${termoDeBusca}".`
+          : 'Nenhum professor cadastrado no momento.'
+      );
+    }
+
+    return {
+      message: 'Professores listados com sucesso',
+      data: professores.map(this.dadosProfessor),
+      total
+    };
+  }
+
+  async buscarProfessorPorId(id: number, adminLogadoId: number) {
     await this.iniciarDatabase();
 
     const professor = await this.professorRepository.findOne({
-      where: { id },
+      where: {
+        id,
+        admin: {
+          membro: {
+            id: adminLogadoId
+          }
+        }
+      },
       relations: ['membro']
     });
 
     if (!professor) {
-      throw ErrorHandler.notFound('Professor não encontrado.');
+      throw ErrorHandler.notFound('Professor não encontrado');
     }
 
-    return professor;
+    return this.dadosProfessor(professor);
   }
 
   async atualizarProfessor(
@@ -93,83 +197,99 @@ export class ProfessorService {
       nomeCompleto?: string;
       numeroMatricula?: string;
       cpf?: string;
-      turma?: number[];
-    }>
+      turmas?: number[];
+    }>,
+    membroAdminId: number
   ) {
     await this.iniciarDatabase();
 
     const professorExistente = await this.professorRepository.findOne({
-      where: { id },
+      where: {
+        id,
+        admin: {
+          membro: {
+            id: membroAdminId
+          }
+        }
+      },
       relations: ['membro', 'turmas']
     });
 
     if (!professorExistente) {
-      throw ErrorHandler.notFound('Professor não encontrado.');
+      throw ErrorHandler.notFound('Professor não encontrado');
     }
 
     const membro = professorExistente.membro;
 
-    // Atualizar os dados do membro
+    const senhaCriptografada = await criptografarSenha(
+      dadosProfessor.numeroMatricula ?? membro.numeroMatricula
+    );
+
     Object.assign(membro, {
       email: dadosProfessor.email ?? membro.email,
       nomeCompleto: dadosProfessor.nomeCompleto ?? membro.nomeCompleto,
       cpf: dadosProfessor.cpf ?? membro.cpf,
-      numeroMatricula: dadosProfessor.numeroMatricula ?? membro.numeroMatricula
+      numeroMatricula: dadosProfessor.numeroMatricula ?? membro.numeroMatricula,
+      senha: dadosProfessor.senha
+        ? await criptografarSenha(dadosProfessor.senha)
+        : senhaCriptografada
     });
-
-    if (dadosProfessor.senha) {
-      membro.senha = await criptografarSenha(dadosProfessor.senha);
-    }
 
     await this.membrosRepository.save(membro);
 
-    // Atualizar as turmas, se necessário
-    if (dadosProfessor.turma) {
-      const turmas = await this.turmaRepository.findBy({
-        id: In(dadosProfessor.turma)
+    if (dadosProfessor.turmas) {
+      const turmasDoProfessor = await this.turmaRepository.findBy({
+        id: In(dadosProfessor.turmas)
       });
 
-      if (turmas.length !== dadosProfessor.turma.length) {
+      if (turmasDoProfessor.length !== dadosProfessor.turmas.length) {
         throw ErrorHandler.notFound(
-          'Algumas turmas fornecidas não foram encontradas.'
+          'Algumas turmas fornecidas não foram encontradas'
         );
       }
 
-      professorExistente.turmas = turmas;
+      professorExistente.turmas = turmasDoProfessor;
     }
 
-    // Salvar alterações no professor
     await this.professorRepository.save(professorExistente);
 
-    return await this.professorRepository.findOne({
-      where: { id },
-      relations: ['membro', 'turmas']
-    });
+    return {
+      message: 'Professor atualizado com sucesso',
+      professor: professorExistente
+    };
   }
 
-  async deletarProfessor(id: number) {
+  async deletarProfessor(id: number, membroIdDoAdmin: number) {
     await this.iniciarDatabase();
 
+    console.log({
+      id,
+      membroIdDoAdmin
+    });
+
     const professorExistente = await this.professorRepository.findOne({
-      where: { id },
+      where: {
+        id
+      },
       relations: ['membro']
     });
 
     if (!professorExistente) {
-      throw ErrorHandler.notFound('Professor não encontrado.');
+      throw ErrorHandler.notFound('Professor não encontrado');
     }
 
-    if (professorExistente.membro) {
-      await this.membrosRepository.remove(professorExistente.membro);
-    }
+    await this.membrosRepository.delete(professorExistente.membro.id);
+    await this.professorRepository.delete(professorExistente.id);
 
-    await this.professorRepository.remove(professorExistente);
+    return { message: 'Professor excluído com sucesso' };
   }
 
   async buscarProfessorTurmas(professorId: number) {
     const professor = await this.professorRepository.findOne({
       where: {
-        id: professorId
+        membro: {
+          id: professorId
+        }
       },
       relations: ['turmas']
     });

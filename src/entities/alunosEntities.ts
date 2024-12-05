@@ -1,16 +1,16 @@
 import {
-  Column,
   Entity,
-  JoinColumn,
   ManyToOne,
+  OneToOne,
+  JoinColumn,
   OneToMany,
-  OneToOne
+  Column
 } from 'typeorm';
-import { Admin } from './adminEntities';
 import { BaseEntity } from './baseEntity';
 import { Membros } from './membrosEntities';
-import { PDI, PdiSecao } from './pdiEntities';
 import { Turma } from './turmasEntities';
+import { Admin } from './adminEntities';
+import { PDI, PdiSecao } from './pdiEntities';
 
 const tabelaDeDesempenho = {
   5: 'Exemplar',
@@ -22,12 +22,11 @@ const tabelaDeDesempenho = {
 
 @Entity('alunos')
 export class Alunos extends BaseEntity {
-  @OneToOne(() => Membros, { eager: true })
+  @OneToOne(() => Membros, { eager: true, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'membroId' })
   membro: Membros;
 
-  @ManyToOne(() => Admin, { eager: true, nullable: false })
-  @JoinColumn({ name: 'adminId' })
+  @ManyToOne(() => Admin, { nullable: true })
   admin: Admin;
 
   @ManyToOne(() => Turma, (turma) => turma.alunos, { nullable: true })
