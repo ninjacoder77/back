@@ -4,6 +4,7 @@ import { Admin } from '../entities/adminEntities';
 import { Alunos } from '../entities/alunosEntities';
 import { TipoConta } from '../entities/baseEntity';
 import { Membros } from '../entities/membrosEntities';
+import { PDI } from '../entities/pdiEntities';
 import { Turma } from '../entities/turmasEntities';
 import ErrorHandler from '../errors/errorHandler';
 import { criptografarSenha } from '../utils/validarSenhaUtils';
@@ -13,6 +14,7 @@ export class AlunoService {
   private membrosRepository = MysqlDataSource.getRepository(Membros);
   private alunoRepository = MysqlDataSource.getRepository(Alunos);
   private turmaRepository = MysqlDataSource.getRepository(Turma);
+  private pdiRepository = MysqlDataSource.getRepository(PDI);
 
   private async iniciarDatabase() {
     if (!MysqlDataSource.isInitialized) {
@@ -26,7 +28,7 @@ export class AlunoService {
       nomeCompleto: aluno.membro.nomeCompleto,
       email: aluno.membro.email,
       numeroMatricula: aluno.membro.numeroMatricula,
-      cpf: aluno.membro.cpf,
+      responsavelCpf: aluno.membro.cpf,
       turma: aluno.turma ? { id: aluno.turma.id } : null
     };
   }
@@ -37,7 +39,7 @@ export class AlunoService {
       nomeCompleto: string;
       numeroMatricula: string;
       turma: number;
-      cpf: string;
+      responsavelCpf: string;
     },
     membroIdDoAdmin: number
   ) {
@@ -68,7 +70,7 @@ export class AlunoService {
       email: dadosAluno.email,
       nomeCompleto: dadosAluno.nomeCompleto,
       numeroMatricula: dadosAluno.numeroMatricula,
-      cpf: dadosAluno.cpf,
+      cpf: dadosAluno.responsavelCpf,
       senha: senhaCriptografada,
       tipoConta: TipoConta.ALUNO,
       adminCriador
@@ -130,18 +132,17 @@ export class AlunoService {
       const aluno = await this.alunoRepository.findOne({
         where: {
           id: alunoId
-        }
+        },
+        relations: ['turma']
       });
-
-      // console.log({ aluno });
 
       return {
         id: aluno.id,
         nomeCompleto: aluno.membro.nomeCompleto,
         email: aluno.membro.email,
         numeroMatricula: aluno.membro.numeroMatricula,
-        cpf: aluno.membro.cpf,
-        turmaId: aluno.turma ? { id: aluno.turma.id } : null
+        responsavelCpf: aluno.membro.cpf,
+        turmaId: aluno.turma ? aluno.turma.id : null
       };
     } catch (error) {
       console.log(error);
@@ -154,7 +155,7 @@ export class AlunoService {
       email?: string;
       nomeCompleto?: string;
       numeroMatricula?: string;
-      cpf?: string;
+      responsavelCpf?: string;
       turma?: number;
     }
   ) {
@@ -181,6 +182,8 @@ export class AlunoService {
 
     Object.assign(aluno.membro, dadosAtualizados);
 
+    aluno.membro.cpf = dadosAtualizados.responsavelCpf || null;
+
     await this.membrosRepository.save(aluno.membro);
     await this.alunoRepository.save(aluno);
 
@@ -198,6 +201,11 @@ export class AlunoService {
     // if (!aluno || aluno.admin.membro.id !== membroIdAdmin) {
     //   throw ErrorHandler.notFound('Aluno não encontrado ou acesso negado.');
     // }
+    await this.pdiRepository
+      .createQueryBuilder()
+      .delete()
+      .where('alunoId = :alunoId', { alunoId })
+      .execute();
 
     await this.membrosRepository.delete(aluno.membro.id);
     await this.alunoRepository.delete(aluno.id);

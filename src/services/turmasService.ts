@@ -1,6 +1,7 @@
 import { Like } from 'typeorm';
 import { MysqlDataSource } from '../config/database';
 import { Admin } from '../entities/adminEntities';
+import { Alunos } from '../entities/alunosEntities';
 import {
   AnoLetivo,
   PeriodoLetivo,
@@ -12,6 +13,7 @@ import ErrorHandler from '../errors/errorHandler';
 export class TurmasService {
   private turmasRepository = MysqlDataSource.getRepository(Turma);
   private adminRepository = MysqlDataSource.getRepository(Admin);
+  private alunosRepository = MysqlDataSource.getRepository(Alunos);
 
   private mapTurma(turma: Turma) {
     const { id, turmaApelido, anoLetivo, periodoLetivo } = turma;
@@ -107,6 +109,20 @@ export class TurmasService {
     if (!turma) {
       throw ErrorHandler.notFound('Turma não encontrada');
     }
+
+    await this.alunosRepository
+      .createQueryBuilder()
+      .delete()
+      .where('turmaId = :turmaId', { turmaId: id })
+      .execute();
+
+    await this.turmasRepository
+      .createQueryBuilder()
+      .delete()
+      .from('professoresTurmas')
+      .where('turmaId = :turmaId', { turmaId: id })
+      .execute();
+
     return await this.turmasRepository.delete(id);
   }
 

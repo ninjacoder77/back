@@ -3,6 +3,7 @@ import { MysqlDataSource } from '../config/database';
 import { Admin } from '../entities/adminEntities';
 import { TipoConta } from '../entities/baseEntity';
 import { Membros } from '../entities/membrosEntities';
+import { PDI } from '../entities/pdiEntities';
 import { Professor } from '../entities/professorEntities';
 import { Turma } from '../entities/turmasEntities';
 import ErrorHandler from '../errors/errorHandler';
@@ -13,6 +14,7 @@ export class ProfessorService {
   private membrosRepository = MysqlDataSource.getRepository(Membros);
   private professorRepository = MysqlDataSource.getRepository(Professor);
   private turmaRepository = MysqlDataSource.getRepository(Turma);
+  private pdiRepository = MysqlDataSource.getRepository(PDI);
 
   private async iniciarDatabase() {
     if (!MysqlDataSource.isInitialized) {
@@ -27,13 +29,7 @@ export class ProfessorService {
       numeroMatricula: professor.membro.numeroMatricula,
       email: professor.membro.email,
       cpf: professor.membro.cpf,
-      turmas: professor.turmas.map((turma) => ({
-        id: turma.id,
-        anoLetivo: turma.anoLetivo,
-        periodoLetivo: turma.periodoLetivo,
-        ensino: turma.ensino,
-        turmaApelido: turma.turmaApelido
-      }))
+      turmas: professor.turmas.map((turma) => turma.id)
     };
   }
 
@@ -259,13 +255,8 @@ export class ProfessorService {
     };
   }
 
-  async deletarProfessor(id: number, membroIdDoAdmin: number) {
+  async deletarProfessor(id: number) {
     await this.iniciarDatabase();
-
-    console.log({
-      id,
-      membroIdDoAdmin
-    });
 
     const professorExistente = await this.professorRepository.findOne({
       where: {
@@ -277,6 +268,12 @@ export class ProfessorService {
     if (!professorExistente) {
       throw ErrorHandler.notFound('Professor não encontrado');
     }
+
+    await this.pdiRepository
+      .createQueryBuilder()
+      .delete()
+      .where('professorId = :professorId', { professorId: id })
+      .execute();
 
     await this.membrosRepository.delete(professorExistente.membro.id);
     await this.professorRepository.delete(professorExistente.id);

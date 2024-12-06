@@ -17,6 +17,12 @@ export class AlunoController {
         .status(201)
         .json({ message: resultado.message, aluno: resultado.aluno });
     } catch (error) {
+      console.log(error);
+      if (error.code === 'ER_DUP_ENTRY') {
+        return res
+          .status(409)
+          .json({ message: 'Número de matrícula já está em uso' });
+      }
       return res
         .status(error.statusCode || 500)
         .json({ message: 'Erro ao criar aluno' });
@@ -65,9 +71,6 @@ export class AlunoController {
   async atualizarAluno(req: Request, res: Response) {
     try {
       const alunoId = parseInt(req.params.id);
-
-      // console.log({ alunoId });
-      // console.log({ membroIdAdmin });
 
       const resultado = await this.alunoService.atualizarAluno(
         alunoId,

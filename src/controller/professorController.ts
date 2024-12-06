@@ -148,10 +148,7 @@ export class ProfessorController {
         throw ErrorHandler.badRequest('ID inválido.');
       }
 
-      const resultado = await this.professorService.deletarProfessor(
-        id,
-        membroIdDoAdmin
-      );
+      const resultado = await this.professorService.deletarProfessor(id);
 
       res.status(200).json(resultado);
     } catch (error) {
